@@ -1,44 +1,57 @@
 import streamlit as st
 import pandas as pd
 import os
-from datetime import datetime
+from datetime import datetime, time, timedelta
 
-# 1. Data Save karne ke liye File (Database ki tarah)
+# --- DARK/RED STYLE ---
+st.markdown("""
+    <style>
+    .stApp {background-color: #000000; color: #ff4b4b;}
+    h1 {color: #ff4b4b !important; text-align: center;}
+    div.stButton > button {background-color: #1a1a1a; color: #ff4b4b; border: 2px solid #ff4b4b; font-weight: bold;}
+    </style>
+""", unsafe_allow_html=True)
+
 DB_FILE = "attendance_data.csv"
+st.title("⚡ Flash Attendance Pro")
 
-# 2. Page Design
-st.set_page_config(page_title="Flash Attendance", layout="centered")
-st.title("Flash Attendance System")
-
-# 3. User Login (Basic)
 user = st.text_input("Apna Naam Likhein")
 
-# 4. Buttons (Green/Red logic)
-col1, col2, col3 = st.columns(3)
+# --- AUTO OT CALCULATOR ---
+# Time picker jahan user apni chutti ka time select karega
+chutti_time = st.time_input("Chutti ka Time Select Karein (e.g., 07:00 PM)", time(18, 0))
 
-def save_data(name, status, ot=0):
-    df = pd.DataFrame([[datetime.now().strftime("%Y-%m-%d %H:%M"), name, status, ot]], 
-                      columns=["Time", "Name", "Status", "OT_Hours"])
-    if os.path.exists(DB_FILE):
-        df.to_csv(DB_FILE, mode='a', header=False, index=False)
+def calculate_ot(end_time):
+    duty_end = time(18, 0) # 6 PM fix time
+    if end_time > duty_end:
+        # OT calculation logic
+        dummy_date = datetime.today()
+        end_dt = datetime.combine(dummy_date, end_time)
+        duty_dt = datetime.combine(dummy_date, duty_end)
+        diff = end_dt - duty_dt
+        return round(diff.total_seconds() / 3600, 2)
+    return 0.0
+
+# --- DATA SAVING ---
+if st.button("✅ Mark Attendance & Save OT"):
+    if not user:
+        st.error("Jani, Naam to likho!")
     else:
-        df.to_csv(DB_FILE, mode='w', header=True, index=False)
-    st.success("Save hogya!")
+        ot_hours = calculate_ot(chutti_time)
+        
+        # Data structure
+        new_entry = pd.DataFrame([[datetime.now().strftime("%Y-%m-%d"), user, chutti_time.strftime("%H:%M"), ot_hours]], 
+                                 columns=["Date", "Name", "Chutti_Time", "OT_Hours"])
+        
+        if os.path.exists(DB_FILE):
+            new_entry.to_csv(DB_FILE, mode='a', header=False, index=False)
+        else:
+            new_entry.to_csv(DB_FILE, mode='w', header=True, index=False)
+            
+        st.success(f"Done! Aaj ka OT: {ot_hours} hours")
 
-with col1:
-    if st.button("✅ Present"):
-        save_data(user, "Present")
-with col2:
-    ot_val = st.number_input("OT Hours", min_value=0.0)
-    if st.button("🚀 Submit OT"):
-        save_data(user, "OT", ot_val)
-with col3:
-    if st.button("❌ Chuti"):
-        save_data(user, "Chuti")
-
-# 5. Report (Table view)
+# --- REPORT VIEW ---
 if st.checkbox("Mera Record Dekhein"):
     if os.path.exists(DB_FILE):
         df = pd.read_csv(DB_FILE)
-        my_data = df[df['Name'] == user]
-        st.table(my_data)
+        st.table(df[df['Name'] == user])
