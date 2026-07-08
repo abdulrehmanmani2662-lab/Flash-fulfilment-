@@ -1,14 +1,15 @@
 import streamlit as st
 import pandas as pd
 import os
-from datetime import datetime, time, timedelta
+from datetime import datetime
 
-# --- DARK/RED STYLE ---
+# --- DARK/RED STYLE (Full Professional) ---
 st.markdown("""
     <style>
     .stApp {background-color: #000000; color: #ff4b4b;}
-    h1 {color: #ff4b4b !important; text-align: center;}
-    div.stButton > button {background-color: #1a1a1a; color: #ff4b4b; border: 2px solid #ff4b4b; font-weight: bold;}
+    h1 {color: #ff4b4b !important; text-align: center; font-size: 24px;}
+    div.stButton > button {background-color: #1a1a1a; color: #ff4b4b; border: 2px solid #ff4b4b; width: 100%; border-radius: 10px;}
+    .stTimeInput label {color: #ff4b4b !important;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -17,40 +18,44 @@ st.title("⚡ Flash Attendance Pro")
 
 user = st.text_input("Apna Naam Likhein")
 
-# --- AUTO OT CALCULATOR ---
-# Time picker jahan user apni chutti ka time select karega
-chutti_time = st.time_input("Chutti ka Time Select Karein (e.g., 07:00 PM)", time(18, 0))
+# --- TIME INPUT (12-Hour format fix) ---
+# Streamlit ka time_input automatically AM/PM dikhata hai agar browser language English ho
+chutti_time = st.time_input("Chutti ka Time Select Karein:")
 
-def calculate_ot(end_time):
-    duty_end = time(18, 0) # 6 PM fix time
-    if end_time > duty_end:
-        # OT calculation logic
-        dummy_date = datetime.today()
-        end_dt = datetime.combine(dummy_date, end_time)
-        duty_dt = datetime.combine(dummy_date, duty_end)
-        diff = end_dt - duty_dt
-        return round(diff.total_seconds() / 3600, 2)
+# --- LOGIC ---
+def get_ot(time_obj):
+    # Duty End 6:00 PM (18:00)
+    duty_end_hour = 18
+    if time_obj.hour >= duty_end_hour:
+        ot_val = (time_obj.hour - duty_end_hour) + (time_obj.minute / 60)
+        return round(ot_val, 2)
     return 0.0
 
-# --- DATA SAVING ---
+# --- SAVE LOGIC ---
 if st.button("✅ Mark Attendance & Save OT"):
     if not user:
-        st.error("Jani, Naam to likho!")
+        st.error("Naam to likho jani!")
     else:
-        ot_hours = calculate_ot(chutti_time)
-        
-        # Data structure
-        new_entry = pd.DataFrame([[datetime.now().strftime("%Y-%m-%d"), user, chutti_time.strftime("%H:%M"), ot_hours]], 
-                                 columns=["Date", "Name", "Chutti_Time", "OT_Hours"])
-        
+        # Check double entry
+        today = datetime.now().strftime("%Y-%m-%d")
         if os.path.exists(DB_FILE):
-            new_entry.to_csv(DB_FILE, mode='a', header=False, index=False)
+            df_check = pd.read_csv(DB_FILE)
+            if not df_check[(df_check['Name'] == user) & (df_check['Date'] == today)].empty:
+                st.warning("Jani, aaj ki entry pehle ho chuki ha!")
+            else:
+                ot = get_ot(chutti_time)
+                new_data = pd.DataFrame([[today, user, chutti_time.strftime("%I:%M %p"), ot]], 
+                                        columns=["Date", "Name", "Chutti_Time", "OT_Hours"])
+                new_data.to_csv(DB_FILE, mode='a', header=not os.path.exists(DB_FILE), index=False)
+                st.success(f"Done! Aaj ka OT: {ot} hours")
         else:
-            new_entry.to_csv(DB_FILE, mode='w', header=True, index=False)
-            
-        st.success(f"Done! Aaj ka OT: {ot_hours} hours")
+            # First time save
+            ot = get_ot(chutti_time)
+            pd.DataFrame([[today, user, chutti_time.strftime("%I:%M %p"), ot]], 
+                         columns=["Date", "Name", "Chutti_Time", "OT_Hours"]).to_csv(DB_FILE, index=False)
+            st.success("Done!")
 
-# --- REPORT VIEW ---
+# --- RECORD TABLE ---
 if st.checkbox("Mera Record Dekhein"):
     if os.path.exists(DB_FILE):
         df = pd.read_csv(DB_FILE)
