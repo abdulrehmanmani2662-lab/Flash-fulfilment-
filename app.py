@@ -22,30 +22,49 @@ user = st.text_input("Apna Naam Likhein:")
 chutti_time = st.time_input("Chutti ka Time:")
 
 if st.button("✅ Mark Attendance"):
-    # OT Calculation
-    duty_end_hour = 18 # 6 PM
-    ot = 0.0
-    if chutti_time.hour >= duty_end_hour:
-        ot = (chutti_time.hour - duty_end_hour) + (chutti_time.minute / 60)
-    
-    # Highlighted Display Box
-    st.markdown(f'''
-        <div class="ot-box">
-            Total OT<br>
-            <span class="ot-val">{round(ot, 2)} Hours</span>
-        </div>
-    ''', unsafe_allow_html=True)
-    
-    # Save to CSV
-    data = [[datetime.now().strftime("%Y-%m-%d"), user, chutti_time.strftime("%I:%M %p"), round(ot, 2)]]
-    df = pd.DataFrame(data, columns=["Date", "Name", "Time", "OT"])
-    
-    if os.path.exists("attendance_data.csv"):
-        df.to_csv("attendance_data.csv", mode='a', header=False, index=False)
+    # 1. Khali Naam ki Warning
+    if user.strip() == "":
+        st.warning("⚠️ Please apna naam zaroor likhein!")
     else:
-        df.to_csv("attendance_data.csv", index=False)
+        # OT Calculation
+        duty_end_hour = 18 # 6 PM
+        ot = 0.0
+        if chutti_time.hour >= duty_end_hour:
+            ot = (chutti_time.hour - duty_end_hour) + (chutti_time.minute / 60)
+        
+        # Highlighted Display Box
+        st.markdown(f'''
+            <div class="ot-box">
+                Total OT<br>
+                <span class="ot-val">{round(ot, 2)} Hours</span>
+            </div>
+        ''', unsafe_allow_html=True)
+        
+        # Save to CSV
+        data = [[datetime.now().strftime("%Y-%m-%d"), user, chutti_time.strftime("%I:%M %p"), round(ot, 2)]]
+        df = pd.DataFrame(data, columns=["Date", "Name", "Time", "OT"])
+        
+        if os.path.exists("attendance_data.csv"):
+            df.to_csv("attendance_data.csv", mode='a', header=False, index=False)
+        else:
+            df.to_csv("attendance_data.csv", index=False)
+            
+        st.success("✅ Attendance lag gayi!")
 
-# Table Section
+# Table & Download Section
 if st.checkbox("Mera Record"):
     if os.path.exists("attendance_data.csv"):
-        st.table(pd.read_csv("attendance_data.csv"))
+        # Data read karna
+        df_record = pd.read_csv("attendance_data.csv")
+        st.table(df_record)
+        
+        # 2. Data Download karne ka Button
+        csv = df_record.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Record Download Karein",
+            data=csv,
+            file_name='attendance_data.csv',
+            mime='text/csv',
+        )
+    else:
+        st.info("Abhi tak koi record save nahi hua.")
