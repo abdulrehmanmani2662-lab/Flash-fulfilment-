@@ -1,40 +1,46 @@
 import streamlit as st
 import pandas as pd
 import os
-from datetime import datetime
+from datetime import datetime, time
 
-# --- UI STYLE (Full Black & Red) ---
+# --- CSS (Dark Mode & Professional Layout) ---
 st.markdown("""
     <style>
     .stApp {background-color: #000000; color: #ff4b4b;}
-    h1 {color: #ff4b4b !important; text-align: center;}
-    .ot-box {background: #1a1a1a; border: 2px solid #ff4b4b; padding: 20px; text-align: center; font-size: 24px; color: #00ff00; border-radius: 10px; margin: 20px 0;}
-    div.stButton > button {background-color: #ff4b4b; color: #000000; width: 100%; font-weight: bold;}
+    .ot-box {background: #1a1a1a; border: 2px solid #ff4b4b; padding: 15px; text-align: center; border-radius: 10px; margin: 10px 0;}
+    .ot-text {font-size: 24px; font-weight: bold; color: #00ff00;}
+    div.stButton > button {background-color: #ff4b4b; color: #000000; width: 100%; height: 50px; font-weight: bold;}
     </style>
 """, unsafe_allow_html=True)
 
-st.title("⚡ Flash Attendance")
-user = st.text_input("Apna Naam:")
-chutti_time = st.time_input("Chutti ka Time:")
+st.title("⚡ Flash Attendance Pro")
+user = st.text_input("Naam:")
+chutti_time = st.time_input("Chutti ka Time Select Karein:")
 
 if st.button("✅ Mark Attendance"):
-    # Logic: 6:00 PM (18:00) ke baad OT shuru
-    duty_end_hour = 18
-    selected_hour = chutti_time.hour
+    # Duty End 6:00 PM (18:00)
+    duty_end = time(18, 0)
+    # Convert input to comparable time
+    if chutti_time > duty_end:
+        # OT Calculation
+        diff = (chutti_time.hour - duty_end.hour) + ((chutti_time.minute - duty_end.minute) / 60)
+        ot = round(diff, 2)
+    else:
+        ot = 0.0
     
-    # OT Calculation
-    ot = 0.0
-    if selected_hour >= duty_end_hour:
-        ot = (selected_hour - duty_end_hour) + (chutti_time.minute / 60)
-    
-    # Total OT show karo
-    st.markdown(f'<div class="ot-box">Total OT: {round(ot, 2)} Hours</div>', unsafe_allow_html=True)
+    # UI Output
+    st.markdown(f'<div class="ot-box">Total OT: <span class="ot-text">{ot} Hours</span></div>', unsafe_allow_html=True)
     
     # Save Data
-    df = pd.DataFrame([[datetime.now().strftime("%Y-%m-%d"), user, chutti_time.strftime("%I:%M %p"), round(ot, 2)]],
+    df = pd.DataFrame([[datetime.now().strftime("%Y-%m-%d"), user, chutti_time.strftime("%I:%M %p"), ot]],
                       columns=["Date", "Name", "Time", "OT"])
     
     if os.path.exists("attendance_data.csv"):
         df.to_csv("attendance_data.csv", mode='a', header=False, index=False)
     else:
         df.to_csv("attendance_data.csv", index=False)
+
+# Table display
+if st.checkbox("Mera Record Dekhein"):
+    if os.path.exists("attendance_data.csv"):
+        st.table(pd.read_csv("attendance_data.csv"))
